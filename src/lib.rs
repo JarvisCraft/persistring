@@ -1,4 +1,5 @@
 pub use cow::CowPersistentString;
+use std::borrow::Cow;
 
 mod cow;
 
@@ -12,7 +13,7 @@ trait PersistentString {
 
     // Copying operations
 
-    fn snapshot(&self) -> String;
+    fn snapshot(&self) -> Cow<str>;
 
     // Mutating operations
 

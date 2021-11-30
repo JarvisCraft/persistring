@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::collections::VecDeque;
 
 use crate::{PersistentString, RedoError, UndoError};
@@ -74,10 +75,10 @@ impl PersistentString for CowPersistentString {
             .unwrap_or(0)
     }
 
-    fn snapshot(&self) -> String {
+    fn snapshot(&self) -> Cow<str> {
         self.current_version()
-            .cloned()
-            .unwrap_or_else(|| String::new())
+            .map(|current| Cow::Borrowed(current.as_ref()))
+            .unwrap_or_else(|| Cow::Owned(String::new()))
     }
 
     fn push_str(&mut self, suffix: &str) {
