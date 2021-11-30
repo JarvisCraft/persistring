@@ -1,9 +1,11 @@
 #![cfg_attr(feature = "allocator_api", feature(allocator_api))]
 
 pub use cow::CowPersistentString;
+pub use delta::DeltaPersistentString;
 use std::borrow::Cow;
 
 mod cow;
+mod delta;
 #[cfg(test)]
 pub(crate) mod tests;
 
