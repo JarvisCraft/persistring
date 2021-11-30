@@ -92,6 +92,9 @@ impl PersistentString for CowPersistentString {
             || suffix.to_string(),
         )
     }
+    fn repeat(&mut self, times: usize) {
+        self.mutate_or_else(|current| current.repeat(times), || String::new())
+    }
 
     fn undo(&mut self) -> Result<(), UndoError> {
         match self.current_version {
@@ -145,7 +148,12 @@ mod tests {
         assert!(string.undo().is_ok());
         assert!(string.snapshot().is_empty());
 
-        assert_eq!(string.undo(), Err(UndoError::Terminal))
+        assert_eq!(string.undo(), Err(UndoError::Terminal));
+
+        string.push_str("LadIs");
+        string.push_str(" ");
+        string.push_str("Washroom");
+        assert_eq!(string.snapshot(), "LadIs Washroom");
     }
 
     #[test]
@@ -247,6 +255,46 @@ mod tests {
 
         assert!(string.undo().is_ok());
         assert!(string.snapshot().is_empty());
+        assert_eq!(string.undo(), Err(UndoError::Terminal));
+    }
+
+    #[test]
+    fn test_repeat() {
+        let mut string = CowPersistentString::new();
+        assert!(string.snapshot().is_empty());
+
+        string.repeat(3);
+        assert!(string.snapshot().is_empty());
+
+        assert!(string.undo().is_ok());
+        assert!(string.snapshot().is_empty());
+
+        assert_eq!(string.undo(), Err(UndoError::Terminal));
+
+        string.push_str("*");
+        assert_eq!(string.snapshot(), "*");
+
+        string.repeat(3);
+        assert_eq!(string.snapshot(), "***");
+
+        string.repeat(3);
+        assert_eq!(string.snapshot(), "*********");
+
+        assert!(string.undo().is_ok());
+        assert_eq!(string.snapshot(), "***");
+
+        assert!(string.redo().is_ok());
+        assert_eq!(string.snapshot(), "*********");
+
+        assert!(string.undo().is_ok());
+        assert_eq!(string.snapshot(), "***");
+
+        assert!(string.undo().is_ok());
+        assert_eq!(string.snapshot(), "*");
+
+        assert!(string.undo().is_ok());
+        assert!(string.snapshot().is_empty());
+
         assert_eq!(string.undo(), Err(UndoError::Terminal));
     }
 }

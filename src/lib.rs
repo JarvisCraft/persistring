@@ -19,6 +19,8 @@ trait PersistentString {
 
     fn push_str(&mut self, string: &str);
 
+    fn repeat(&mut self, times: usize);
+
     // Persistence management operations
 
     fn undo(&mut self) -> Result<(), UndoError>;
