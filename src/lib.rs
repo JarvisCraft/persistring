@@ -1,3 +1,5 @@
+#![cfg_attr(feature = "allocator_api", feature(allocator_api))]
+
 pub use cow::CowPersistentString;
 use std::borrow::Cow;
 

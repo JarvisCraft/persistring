@@ -1,12 +1,22 @@
-use std::borrow::Cow;
-use std::collections::VecDeque;
+#[cfg(feature = "allocator_api")]
+use std::alloc::{Allocator, Global};
+use std::{borrow::Cow, collections::VecDeque};
 
 use crate::{PersistentString, RedoError, UndoError};
 
-// TODO: Allocator API support once it is stable
 /// [`PersistentString`] which keeps every reachable version of itself,
 /// cloning current version on each mutation.
-#[derive(Clone, Default, Debug)]
+#[cfg(feature = "allocator_api")]
+#[derive(Clone, Debug)]
+pub struct CowPersistentString<A: Allocator = Global> {
+    /// Stack of reachable string versions.
+    versions: VecDeque<String, A>,
+    /// Index of the current version in [`versions`] subtracted by `1`.
+    /// The value of `0` corresponds to an empty state.
+    current_version: usize,
+}
+#[cfg(not(feature = "allocator_api"))]
+#[derive(Clone, Debug)]
 pub struct CowPersistentString {
     /// Stack of reachable string versions.
     versions: VecDeque<String>,
@@ -30,18 +40,6 @@ impl CowPersistentString {
         }
     }
 
-    /*    fn mutate(&mut self, operation: impl FnOnce(Option<&String>) -> String) {
-        let version_id = self.version_id;
-        let overwritten_versions = version_id - self.versions.len();
-        for _ in 0..overwritten_versions {
-            let popped = self.versions.pop_back();
-            debug_assert!(popped.is_some());
-        }
-        self.versions.push_back(operation(self.versions.back()));
-
-        self.version_id = version_id + 1;
-    }*/
-
     fn mutate_or_else(
         &mut self,
         operation: impl FnOnce(&String) -> String,
@@ -59,6 +57,24 @@ impl CowPersistentString {
             .push_back(self.versions.back().map(operation).unwrap_or_else(fallback));
 
         self.current_version = current_version + 1;
+    }
+}
+
+// Manual implementation is used instead of derive to allow specifying custom allocator
+impl Default for CowPersistentString {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[cfg(feature = "allocator_api")]
+impl<A: Allocator> CowPersistentString<A> {
+    #[cfg(feature = "allocator_api")]
+    pub fn new_in(allocator: A) -> Self {
+        Self {
+            versions: VecDeque::new_in(allocator),
+            current_version: 0,
+        }
     }
 }
 
@@ -85,7 +101,7 @@ impl PersistentString for CowPersistentString {
         self.mutate_or_else(
             |current| {
                 let mut current = current.clone();
-                current.push_str(suffix.clone());
+                current.push_str(suffix);
 
                 current
             },
@@ -123,7 +139,6 @@ impl PersistentString for CowPersistentString {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::RedoError;
 
     #[test]
     fn test_3_push_with_undo() {
