@@ -4,6 +4,8 @@ pub use cow::CowPersistentString;
 use std::borrow::Cow;
 
 mod cow;
+#[cfg(test)]
+pub(crate) mod tests;
 
 /// A string providing persistent operations.
 pub trait PersistentString {
