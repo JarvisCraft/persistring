@@ -6,7 +6,7 @@ use std::borrow::Cow;
 mod cow;
 
 /// A string providing persistent operations.
-trait PersistentString {
+pub trait PersistentString {
     // State-checking operations
 
     fn is_empty(&self) -> bool;
@@ -48,12 +48,12 @@ trait PersistentString {
 
 /// An error which may happen when undoing an operation.
 #[derive(Eq, PartialEq, Copy, Clone, Debug)]
-enum UndoError {
+pub enum UndoError {
     Terminal,
 }
 
 /// An error which may occur when redoing an operation.
 #[derive(Eq, PartialEq, Copy, Clone, Debug)]
-enum RedoError {
+pub enum RedoError {
     Terminal,
 }
