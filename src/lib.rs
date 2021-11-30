@@ -1,3 +1,7 @@
+mod cow;
+
+pub use cow::CowPersistentString;
+
 /// A string providing persistent operations.
 trait PersistentString {
     // State-checking operations
