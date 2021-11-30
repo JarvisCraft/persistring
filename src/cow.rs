@@ -112,6 +112,8 @@ impl PersistentString for CowPersistentString {
             Err(RedoError::Terminal)
         }
     }
+
+    // TODO batching methods
 }
 
 #[cfg(test)]
