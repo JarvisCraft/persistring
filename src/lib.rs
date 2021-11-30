@@ -6,6 +6,8 @@ pub use cow::CowPersistentString;
 trait PersistentString {
     // State-checking operations
 
+    fn is_empty(&self) -> bool;
+
     fn len(&self) -> usize;
 
     // Copying operations

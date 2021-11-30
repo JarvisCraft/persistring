@@ -40,6 +40,12 @@ impl CowPersistentString {
 }
 
 impl PersistentString for CowPersistentString {
+    fn is_empty(&self) -> bool {
+        self.current_version()
+            .map(|current| current.is_empty())
+            .unwrap_or(true)
+    }
+
     fn len(&self) -> usize {
         self.current_version()
             .map(|current| current.len())
