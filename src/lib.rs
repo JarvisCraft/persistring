@@ -22,7 +22,7 @@ trait PersistentString {
 
     fn undo(&mut self) -> Result<(), UndoError>;
 
-    fn redo(&mut self) -> Result<(), UndoError>;
+    fn redo(&mut self) -> Result<(), RedoError>;
 }
 
 /// An error which may happen when undoing an operation.
