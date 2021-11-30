@@ -102,13 +102,15 @@ mod tests {
         string.push_str("baz");
         assert_eq!(string.snapshot(), "foobarbaz".to_string());
 
-        string.undo();
+        assert!(string.undo().is_ok());
         assert_eq!(string.snapshot(), "foobar".to_string());
 
-        string.undo();
+        assert!(string.undo().is_ok());
         assert_eq!(string.snapshot(), "foo".to_string());
 
-        string.undo();
+        assert!(string.undo().is_ok());
         assert!(string.snapshot().is_empty());
+
+        assert_eq!(string.undo(), Err(UndoError::Terminal))
     }
 }

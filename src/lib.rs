@@ -1,6 +1,6 @@
-mod cow;
-
 pub use cow::CowPersistentString;
+
+mod cow;
 
 /// A string providing persistent operations.
 trait PersistentString {
@@ -26,11 +26,13 @@ trait PersistentString {
 }
 
 /// An error which may happen when undoing an operation.
+#[derive(Eq, PartialEq, Copy, Clone, Debug)]
 enum UndoError {
     Terminal,
 }
 
 /// An error which may occur when redoing an operation.
+#[derive(Eq, PartialEq, Copy, Clone, Debug)]
 enum RedoError {
     Terminal,
 }
