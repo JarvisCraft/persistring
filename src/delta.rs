@@ -1,8 +1,20 @@
+#[cfg(feature = "allocator_api")]
+use std::alloc::{Allocator, Global};
 use std::{borrow::Cow, collections::VecDeque};
 
 use crate::{PersistentString, RedoError, UndoError};
 
-/// [`PersistentString`] which only stores deltas producing the resulting string.
+/// [`PersistentString`] which only stores deltas producing the resulting string.#[cfg(feature = "allocator_api")]
+#[cfg(feature = "allocator_api")]
+#[derive(Clone, Debug)]
+pub struct DeltaPersistentString<A: Allocator = Global> {
+    /// Sequence of operations producing current string.
+    deltas: VecDeque<Delta, A>,
+    /// Index of the current version in [`versions`] subtracted by `1`.
+    /// The value of `0` corresponds to an empty state.
+    current_version: usize,
+}
+#[cfg(not(feature = "allocator_api"))]
 #[derive(Clone, Debug)]
 pub struct DeltaPersistentString {
     /// Sequence of operations producing current string.
@@ -35,6 +47,17 @@ impl Delta {
 impl Default for DeltaPersistentString {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(feature = "allocator_api")]
+impl<A: Allocator> DeltaPersistentString<A> {
+    #[cfg(feature = "allocator_api")]
+    pub fn new_in(allocator: A) -> Self {
+        Self {
+            deltas: VecDeque::new_in(allocator),
+            current_version: 0,
+        }
     }
 }
 
