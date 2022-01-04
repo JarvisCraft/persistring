@@ -1,8 +1,9 @@
 #[cfg(feature = "allocator_api")]
 use std::alloc::{Allocator, Global};
-use std::{borrow::Cow, collections::VecDeque};
 
-use crate::{PersistentString, RedoError, UndoError};
+use {crate::PersistentString, std::borrow::Cow};
+
+use crate::VersionSwitchError;
 
 /// [`PersistentString`] which keeps every reachable version of itself,
 /// cloning current version on each mutation.
@@ -10,7 +11,7 @@ use crate::{PersistentString, RedoError, UndoError};
 #[derive(Clone, Debug)]
 pub struct CowPersistentString<A: Allocator = Global> {
     /// Stack of reachable string versions.
-    versions: VecDeque<String, A>,
+    versions: Vec<String, A>,
     /// Index of the current version in [`versions`] subtracted by `1`.
     /// The value of `0` corresponds to an empty state.
     current_version: usize,
@@ -19,51 +20,107 @@ pub struct CowPersistentString<A: Allocator = Global> {
 #[derive(Clone, Debug)]
 pub struct CowPersistentString {
     /// Stack of reachable string versions.
-    versions: VecDeque<String>,
+    versions: Vec<Snapshot>,
     /// Index of the current version in [`versions`] subtracted by `1`.
     /// The value of `0` corresponds to an empty state.
-    current_version: usize,
+    current_id: usize,
 }
 
 impl CowPersistentString {
     pub fn new() -> Self {
         Self {
-            versions: VecDeque::new(),
-            current_version: 0,
+            versions: Vec::new(),
+            current_id: 0,
         }
     }
 
     fn current_version(&self) -> Option<&String> {
-        match self.current_version {
-            0 => None,
-            current_version => self.versions.get(current_version - 1),
-        }
+        self.current_id
+            .checked_sub(1)
+            .and_then(|index| self.versions.get(index))
+            .map(|snapshpt| &snapshpt.value)
     }
 
-    fn mutate_or_else(
+    fn transform_version(
         &mut self,
         operation: impl FnOnce(&String) -> String,
         fallback: impl FnOnce() -> String,
     ) {
-        let current_version = self.current_version;
-        // there may be later versions from which `undo` happened,
-        // these should no longer be reachable
-        let overwritten_versions = self.versions.len() - current_version;
-        for _ in 0..overwritten_versions {
-            let popped = self.versions.pop_back();
-            debug_assert!(popped.is_some());
-        }
-        self.versions
-            .push_back(self.versions.back().map(operation).unwrap_or_else(fallback));
+        // ID should always be unique
+        let new_id = self.versions.len() + 1;
 
-        self.current_version = current_version + 1;
+        //let current_version = self.current_id;
+
+        self.versions.push(Snapshot {
+            value: self
+                .current_id
+                .checked_sub(1)
+                .and_then(|index| self.versions.get(index))
+                .map(|snapshot| &snapshot.value)
+                .map(operation)
+                .unwrap_or_else(fallback),
+            //previous: current_version,
+        });
+        self.current_id = new_id;
     }
-}
 
-// Manual implementation is used instead of derive to allow specifying custom allocator
-impl Default for CowPersistentString {
-    fn default() -> Self {
-        Self::new()
+    fn transform_version_with_result<T>(
+        &mut self,
+        operation: impl FnOnce(&String) -> (String, T),
+        fallback: impl FnOnce() -> (String, T),
+    ) -> T {
+        // ID should always be unique
+        let new_id = self.versions.len() + 1;
+
+        //let current_version = self.current_id;
+
+        let (new_value, result) = self
+            .current_id
+            .checked_sub(1)
+            .and_then(|index| self.versions.get(index))
+            .map(|snapshot| &snapshot.value)
+            .map(operation)
+            .unwrap_or_else(fallback);
+
+        self.versions.push(Snapshot {
+            value: new_value,
+            //previous: current_version,
+        });
+        self.current_id = new_id;
+
+        result
+    }
+
+    fn clone_into_new_version_with_result<T>(
+        &mut self,
+        operation: impl FnOnce(&mut String) -> T,
+        fallback: impl FnOnce() -> (String, T),
+    ) -> T {
+        self.transform_version_with_result(
+            |current| {
+                let mut current = current.clone();
+                let result = operation(&mut current);
+
+                (current, result)
+            },
+            fallback,
+        )
+    }
+
+    fn clone_into_new_version(
+        &mut self,
+        operation: impl FnOnce(&mut String),
+        fallback: impl FnOnce() -> String,
+    ) {
+        self.transform_version(
+            |current| {
+                let mut cloned = current.clone();
+                operation(&mut cloned);
+
+                cloned
+            },
+            fallback,
+        );
     }
 }
 
@@ -78,7 +135,33 @@ impl<A: Allocator> CowPersistentString<A> {
     }
 }
 
+// Manual implementation is used instead of derive to allow specifying custom allocator
+impl Default for CowPersistentString {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PersistentString for CowPersistentString {
+    fn version(&self) -> usize {
+        self.current_id
+    }
+
+    fn latest_version(&self) -> usize {
+        self.versions.len()
+    }
+
+    fn try_switch_version(&mut self, version: usize) -> Result<(), VersionSwitchError> {
+        if version <= self.versions.len() {
+            self.current_id = version;
+            Ok(())
+        } else {
+            Err(VersionSwitchError::InvalidVersion(version))
+        }
+    }
+
+    // Non mutating methods
+
     fn is_empty(&self) -> bool {
         self.current_version()
             .map(|current| current.is_empty())
@@ -94,46 +177,69 @@ impl PersistentString for CowPersistentString {
     fn snapshot(&self) -> Cow<str> {
         self.current_version()
             .map(|current| Cow::Borrowed(current.as_ref()))
-            .unwrap_or_else(|| Cow::Owned(String::new()))
+            .unwrap_or_else(|| Cow::Borrowed(""))
+    }
+
+    // Non mutating methods
+
+    fn pop(&mut self) -> Option<char> {
+        self.clone_into_new_version_with_result(String::pop, || (String::new(), None))
+    }
+
+    fn push(&mut self, character: char) {
+        self.clone_into_new_version(|current| current.push(character), || character.to_string())
     }
 
     fn push_str(&mut self, suffix: &str) {
-        self.mutate_or_else(
-            |current| {
-                let mut current = current.clone();
-                current.push_str(suffix);
+        self.clone_into_new_version(|current| current.push_str(suffix), || suffix.to_owned())
+    }
 
-                current
-            },
-            || suffix.to_string(),
+    fn repeat(&mut self, times: usize) {
+        self.transform_version(|current| current.repeat(times), || String::new())
+    }
+
+    fn remove(&mut self, index: usize) -> char {
+        self.clone_into_new_version_with_result(
+            |current| current.remove(index),
+            || panic!("string is empty"),
         )
     }
-    fn repeat(&mut self, times: usize) {
-        self.mutate_or_else(|current| current.repeat(times), || String::new())
+
+    fn retain(&mut self, filter: impl Fn(char) -> bool) {
+        self.clone_into_new_version(|current| current.retain(filter), || String::new())
     }
 
-    fn undo(&mut self) -> Result<(), UndoError> {
-        match self.current_version {
-            0 => Err(UndoError::Terminal),
-            version_id => {
-                self.current_version = version_id - 1;
-
-                Ok(())
-            }
-        }
+    fn insert(&mut self, index: usize, character: char) {
+        self.clone_into_new_version(
+            |current| current.insert(index, character),
+            || {
+                if index == 0 {
+                    character.to_string()
+                } else {
+                    panic!("string is empty and the index is not 0")
+                }
+            },
+        )
     }
 
-    fn redo(&mut self) -> Result<(), RedoError> {
-        let current_version = self.current_version;
-        if current_version < self.versions.len() {
-            self.current_version = current_version + 1;
-            Ok(())
-        } else {
-            Err(RedoError::Terminal)
-        }
+    fn insert_str(&mut self, index: usize, insertion: &str) {
+        self.clone_into_new_version(
+            |current| current.insert_str(index, insertion),
+            || {
+                if index == 0 {
+                    insertion.to_string()
+                } else {
+                    panic!("string is empty and the index is not 0")
+                }
+            },
+        )
     }
+}
 
-    // TODO batching methods
+#[derive(Debug, Clone)]
+struct Snapshot {
+    /// Value of this snapshot.
+    value: String,
 }
 
 #[cfg(test)]
