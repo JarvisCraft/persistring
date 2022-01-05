@@ -1,16 +1,17 @@
 use super::*;
+use std::fmt::Debug;
 
 macro_rules! persistent_string_test_suite {
-    ($factory:expr => $($test:ident),* $(,)?) => {
+    ($string:ty => $($test:ident),* $(,)?) => {
         $(
             #[test]
             fn $test() {
-                $crate::tests::$test($factory);
+                $crate::tests::$test::<$string>();
             }
         )*
     };
-    ($constructor:expr) => {
-        $crate::tests::persistent_string_test_suite!(|| $constructor =>
+    ($string:ty) => {
+        $crate::tests::persistent_string_test_suite!($string =>
             test_readonly_operations,
             test_push_versioning,
             test_push_str_versioning,
@@ -41,8 +42,8 @@ macro_rules! assert_version_eq {
     };
 }
 
-pub(crate) fn test_readonly_operations<S: PersistentString>(factory: impl Fn() -> S) {
-    let mut string = factory();
+pub(crate) fn test_readonly_operations<S: PersistentString>() {
+    let mut string = S::new();
 
     let version_0 = string.version();
     assert!(string.is_empty());
@@ -67,8 +68,8 @@ pub(crate) fn test_readonly_operations<S: PersistentString>(factory: impl Fn() -
     assert_ne_all!(version_3; version_0, version_1, version_2);
 }
 
-pub(crate) fn test_push_str_versioning<S: PersistentString>(factory: impl Fn() -> S) {
-    let mut string = factory();
+pub(crate) fn test_push_str_versioning<S: PersistentString>() {
+    let mut string = S::new();
     let version_0 = string.version();
 
     string.push_str("foo");
@@ -91,8 +92,8 @@ pub(crate) fn test_push_str_versioning<S: PersistentString>(factory: impl Fn() -
     assert_version_eq!(string, version_1, "foo");
 }
 
-pub(crate) fn test_push_versioning<S: PersistentString>(factory: impl Fn() -> S) {
-    let mut string = factory();
+pub(crate) fn test_push_versioning<S: PersistentString>() {
+    let mut string = S::new();
     let version_0 = string.version();
 
     string.push('o');
@@ -141,12 +142,13 @@ pub(crate) fn test_push_versioning<S: PersistentString>(factory: impl Fn() -> S)
     assert_version_eq!(string, version_7, "oms");
 }
 
-pub(crate) fn test_pop_versioning<S: PersistentString>(factory: impl Fn() -> S) {
-    let mut string = factory();
+pub(crate) fn test_pop_versioning<S: PersistentString + Debug>() {
+    let mut string = S::new();
     let version_0 = string.version();
 
     string.push_str("hello");
     let version_1 = string.version();
+    println!("1:: {:?}", string);
 
     assert_eq!(string.pop(), Some('o'));
     let version_2 = string.version();
@@ -159,6 +161,7 @@ pub(crate) fn test_pop_versioning<S: PersistentString>(factory: impl Fn() -> S) 
     let version_4 = string.version();
     assert_eq!(string.snapshot(), "hell world");
 
+    println!("4:: {:?}", string);
     assert_version_eq!(string, version_1, "hello");
     string.push(' ');
     let version_5 = string.version();
@@ -187,8 +190,8 @@ pub(crate) fn test_pop_versioning<S: PersistentString>(factory: impl Fn() -> S) 
     assert_version_eq!(string, version_8, "hello wor");
 }
 
-pub(crate) fn test_repeat_versioning<S: PersistentString>(factory: impl Fn() -> S) {
-    let mut string = factory();
+pub(crate) fn test_repeat_versioning<S: PersistentString>() {
+    let mut string = S::new();
     let version_0 = string.version();
 
     string.repeat(5);
@@ -237,8 +240,8 @@ pub(crate) fn test_repeat_versioning<S: PersistentString>(factory: impl Fn() -> 
     assert_version_eq!(string, version_4, "xxxxxx");
 }
 
-pub(crate) fn test_retain_versioning<S: PersistentString>(factory: impl Fn() -> S) {
-    let mut string = factory();
+pub(crate) fn test_retain_versioning<S: PersistentString>() {
+    let mut string = S::new();
     let version_0 = string.version();
 
     string.push_str("hi there");
@@ -290,8 +293,8 @@ pub(crate) fn test_retain_versioning<S: PersistentString>(factory: impl Fn() -> 
     assert_version_eq!(string, version_4, "");
 }
 
-pub(crate) fn test_insert_versioning<S: PersistentString>(factory: impl Fn() -> S) {
-    let mut string = factory();
+pub(crate) fn test_insert_versioning<S: PersistentString>() {
+    let mut string = S::new();
     let version_0 = string.version();
 
     string.insert(0, 'a');
@@ -336,8 +339,8 @@ pub(crate) fn test_insert_versioning<S: PersistentString>(factory: impl Fn() -> 
     assert_version_eq!(string, version_3, "abc");
 }
 
-pub(crate) fn test_insert_str_versioning<S: PersistentString>(factory: impl Fn() -> S) {
-    let mut string = factory();
+pub(crate) fn test_insert_str_versioning<S: PersistentString>() {
+    let mut string = S::new();
     let version_0 = string.version();
 
     string.insert_str(0, "foo");

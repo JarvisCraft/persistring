@@ -1,9 +1,10 @@
 #[cfg(feature = "allocator_api")]
 use std::alloc::{Allocator, Global};
 
-use {crate::PersistentString, std::borrow::Cow};
-
-use crate::VersionSwitchError;
+use {
+    crate::{PersistentString, VersionSwitchError},
+    std::borrow::Cow,
+};
 
 /// [`PersistentString`] which keeps every reachable version of itself,
 /// cloning current version on each mutation.
@@ -11,7 +12,7 @@ use crate::VersionSwitchError;
 #[derive(Clone, Debug)]
 pub struct CowPersistentString<A: Allocator = Global> {
     /// Stack of reachable string versions.
-    versions: Vec<String, A>,
+    versions: Vec<Snapshot, A>,
     /// Index of the current version in [`versions`] subtracted by `1`.
     /// The value of `0` corresponds to an empty state.
     current_version: usize,
@@ -23,19 +24,12 @@ pub struct CowPersistentString {
     versions: Vec<Snapshot>,
     /// Index of the current version in [`versions`] subtracted by `1`.
     /// The value of `0` corresponds to an empty state.
-    current_id: usize,
+    current_version: usize,
 }
 
 impl CowPersistentString {
-    pub fn new() -> Self {
-        Self {
-            versions: Vec::new(),
-            current_id: 0,
-        }
-    }
-
     fn current_version(&self) -> Option<&String> {
-        self.current_id
+        self.current_version
             .checked_sub(1)
             .and_then(|index| self.versions.get(index))
             .map(|snapshpt| &snapshpt.value)
@@ -53,7 +47,7 @@ impl CowPersistentString {
 
         self.versions.push(Snapshot {
             value: self
-                .current_id
+                .current_version
                 .checked_sub(1)
                 .and_then(|index| self.versions.get(index))
                 .map(|snapshot| &snapshot.value)
@@ -61,7 +55,7 @@ impl CowPersistentString {
                 .unwrap_or_else(fallback),
             //previous: current_version,
         });
-        self.current_id = new_id;
+        self.current_version = new_id;
     }
 
     fn transform_version_with_result<T>(
@@ -75,7 +69,7 @@ impl CowPersistentString {
         //let current_version = self.current_id;
 
         let (new_value, result) = self
-            .current_id
+            .current_version
             .checked_sub(1)
             .and_then(|index| self.versions.get(index))
             .map(|snapshot| &snapshot.value)
@@ -86,7 +80,7 @@ impl CowPersistentString {
             value: new_value,
             //previous: current_version,
         });
-        self.current_id = new_id;
+        self.current_version = new_id;
 
         result
     }
@@ -143,8 +137,15 @@ impl Default for CowPersistentString {
 }
 
 impl PersistentString for CowPersistentString {
+    fn new() -> Self {
+        Self {
+            versions: Vec::new(),
+            current_version: 0,
+        }
+    }
+
     fn version(&self) -> usize {
-        self.current_id
+        self.current_version
     }
 
     fn latest_version(&self) -> usize {
@@ -153,14 +154,18 @@ impl PersistentString for CowPersistentString {
 
     fn try_switch_version(&mut self, version: usize) -> Result<(), VersionSwitchError> {
         if version <= self.versions.len() {
-            self.current_id = version;
+            self.current_version = version;
             Ok(())
         } else {
             Err(VersionSwitchError::InvalidVersion(version))
         }
     }
 
-    // Non mutating methods
+    fn snapshot(&self) -> Cow<str> {
+        self.current_version()
+            .map(|current| Cow::Borrowed(current.as_ref()))
+            .unwrap_or_else(|| Cow::Borrowed(""))
+    }
 
     fn is_empty(&self) -> bool {
         self.current_version()
@@ -173,14 +178,6 @@ impl PersistentString for CowPersistentString {
             .map(|current| current.len())
             .unwrap_or(0)
     }
-
-    fn snapshot(&self) -> Cow<str> {
-        self.current_version()
-            .map(|current| Cow::Borrowed(current.as_ref()))
-            .unwrap_or_else(|| Cow::Borrowed(""))
-    }
-
-    // Non mutating methods
 
     fn pop(&mut self) -> Option<char> {
         self.clone_into_new_version_with_result(String::pop, || (String::new(), None))
@@ -244,5 +241,5 @@ struct Snapshot {
 
 #[cfg(test)]
 mod tests {
-    crate::tests::persistent_string_test_suite!(super::CowPersistentString::new());
+    crate::tests::persistent_string_test_suite!(super::CowPersistentString);
 }

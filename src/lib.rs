@@ -15,6 +15,8 @@ mod delta;
 */
 /// A string providing persistent operations.
 pub trait PersistentString {
+    fn new() -> Self;
+
     // Version management
 
     /// Gets the current version of this string.
