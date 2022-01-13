@@ -1,3 +1,3 @@
 mod string_segment;
 
-pub(crate) use string_segment::StringSegment;
+pub(crate) use string_segment::BytesSegment;

@@ -1,10 +1,12 @@
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct StringSegment {
+pub(crate) struct BytesSegment {
     pub(crate) begin: usize,
     pub(crate) end: usize,
 }
 
-impl StringSegment {
+impl BytesSegment {
+    pub const EMPTY: BytesSegment = BytesSegment::of_length(0, 0);
+
     pub fn new(begin: usize, end: usize) -> Self {
         debug_assert!(begin < end);
 

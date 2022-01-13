@@ -1,5 +1,5 @@
 use {
-    crate::{util::StringSegment as Segment, PersistentString, VersionSwitchError},
+    crate::{util::BytesSegment as Segment, PersistentString, VersionSwitchError},
     std::{borrow::Cow, str},
 };
 
