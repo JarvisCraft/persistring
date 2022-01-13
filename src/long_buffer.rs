@@ -1,6 +1,6 @@
 use {
-    crate::{PersistentString, VersionSwitchError},
-    std::{borrow::Cow, cmp::Ordering, str},
+    crate::{util::StringSegment as Segment, PersistentString, VersionSwitchError},
+    std::{borrow::Cow, str},
 };
 
 #[derive(Debug)]
@@ -98,10 +98,9 @@ impl PersistentString for LongBufferPersistentString {
         let mut new_version = self.bump_version().clone();
 
         new_version.length += character.len_utf8();
-        new_version.segments.push(Segment {
-            begin: old_buffer_length,
-            end: new_buffer_length,
-        });
+        new_version
+            .segments
+            .push(Segment::new(old_buffer_length, new_buffer_length));
         self.versions.push(new_version);
     }
 
@@ -113,10 +112,9 @@ impl PersistentString for LongBufferPersistentString {
         let mut new_version = self.bump_version().clone();
 
         new_version.length += suffix.len();
-        new_version.segments.push(Segment {
-            begin: old_buffer_length,
-            end: new_buffer_length,
-        });
+        new_version
+            .segments
+            .push(Segment::new(old_buffer_length, new_buffer_length));
         self.versions.push(new_version);
     }
 
@@ -133,7 +131,7 @@ impl PersistentString for LongBufferPersistentString {
     }
 
     fn remove(&mut self, index: usize) -> char {
-        todo!()
+        todo!("implement by 14.02.2021")
     }
 
     fn retain(&mut self, filter: impl Fn(char) -> bool) {
@@ -154,7 +152,9 @@ impl PersistentString for LongBufferPersistentString {
                     length -= character_len;
 
                     // cut segment
-                    if let Some(segment) = Segment::try_from_of_length(segment_begin, segment_len) {
+                    if let Some(segment) =
+                        Segment::try_non_empty_of_length(segment_begin, segment_len)
+                    {
                         segments.push(segment);
                     }
 
@@ -163,7 +163,7 @@ impl PersistentString for LongBufferPersistentString {
                 }
             }
 
-            if let Some(segment) = Segment::try_from_of_length(segment_begin, segment_len) {
+            if let Some(segment) = Segment::try_non_empty_of_length(segment_begin, segment_len) {
                 segments.push(segment);
             }
         }
@@ -185,10 +185,7 @@ impl PersistentString for LongBufferPersistentString {
 
         let mut current_index = 0usize;
 
-        let character_segment = Segment {
-            begin: self.buffer.len(),
-            end: character.len_utf8(),
-        };
+        let character_segment = Segment::new(self.buffer.len(), character.len_utf8());
         self.buffer.push(character);
 
         /* 'outer: for segment in &old_version.segments {
@@ -219,11 +216,11 @@ impl PersistentString for LongBufferPersistentString {
             segments: todo!(),
         });*/
 
-        todo!()
+        todo!("implement by 14.02.2021")
     }
 
     fn insert_str(&mut self, index: usize, insertion: &str) {
-        todo!()
+        todo!("implement by 14.02.2021")
     }
 }
 
@@ -246,41 +243,6 @@ impl Version {
         }
 
         Cow::Owned(result)
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-struct Segment {
-    begin: usize,
-    end: usize,
-}
-
-impl Segment {
-    fn try_from_of_length(from: usize, length: usize) -> Option<Self> {
-        if length > 0 {
-            Some(Self {
-                begin: from,
-                end: from + length,
-            })
-        } else {
-            None
-        }
-    }
-    fn from_of_length(from: usize, length: usize) -> Self {
-        debug_assert!(length > 0, "segments should not be empty");
-        Self {
-            begin: from,
-            end: from + length,
-        }
-    }
-
-    fn len(&self) -> usize {
-        self.end - (self.begin + 1)
-    }
-
-    fn as_str<'a>(&self, buffer: &'a [u8]) -> &'a str {
-        str::from_utf8(&buffer[self.begin..self.end])
-            .expect("the segment of version has been created incorrectly")
     }
 }
 
