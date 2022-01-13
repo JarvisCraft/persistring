@@ -42,7 +42,7 @@ macro_rules! assert_version_eq {
     };
 }
 
-pub(crate) fn test_readonly_operations<S: PersistentString>() {
+pub(crate) fn test_readonly_operations<S: PersistentString + Debug>() {
     let mut string = S::new();
 
     let version_0 = string.version();
@@ -68,7 +68,7 @@ pub(crate) fn test_readonly_operations<S: PersistentString>() {
     assert_ne_all!(version_3; version_0, version_1, version_2);
 }
 
-pub(crate) fn test_push_str_versioning<S: PersistentString>() {
+pub(crate) fn test_push_str_versioning<S: PersistentString + Debug>() {
     let mut string = S::new();
     let version_0 = string.version();
 
@@ -92,7 +92,7 @@ pub(crate) fn test_push_str_versioning<S: PersistentString>() {
     assert_version_eq!(string, version_1, "foo");
 }
 
-pub(crate) fn test_push_versioning<S: PersistentString>() {
+pub(crate) fn test_push_versioning<S: PersistentString + Debug>() {
     let mut string = S::new();
     let version_0 = string.version();
 
@@ -148,7 +148,6 @@ pub(crate) fn test_pop_versioning<S: PersistentString + Debug>() {
 
     string.push_str("hello");
     let version_1 = string.version();
-    println!("1:: {:?}", string);
 
     assert_eq!(string.pop(), Some('o'));
     let version_2 = string.version();
@@ -161,7 +160,6 @@ pub(crate) fn test_pop_versioning<S: PersistentString + Debug>() {
     let version_4 = string.version();
     assert_eq!(string.snapshot(), "hell world");
 
-    println!("4:: {:?}", string);
     assert_version_eq!(string, version_1, "hello");
     string.push(' ');
     let version_5 = string.version();
@@ -190,7 +188,7 @@ pub(crate) fn test_pop_versioning<S: PersistentString + Debug>() {
     assert_version_eq!(string, version_8, "hello wor");
 }
 
-pub(crate) fn test_repeat_versioning<S: PersistentString>() {
+pub(crate) fn test_repeat_versioning<S: PersistentString + Debug>() {
     let mut string = S::new();
     let version_0 = string.version();
 
@@ -240,7 +238,7 @@ pub(crate) fn test_repeat_versioning<S: PersistentString>() {
     assert_version_eq!(string, version_4, "xxxxxx");
 }
 
-pub(crate) fn test_retain_versioning<S: PersistentString>() {
+pub(crate) fn test_retain_versioning<S: PersistentString + Debug>() {
     let mut string = S::new();
     let version_0 = string.version();
 
@@ -293,7 +291,7 @@ pub(crate) fn test_retain_versioning<S: PersistentString>() {
     assert_version_eq!(string, version_4, "");
 }
 
-pub(crate) fn test_insert_versioning<S: PersistentString>() {
+pub(crate) fn test_insert_versioning<S: PersistentString + Debug>() {
     let mut string = S::new();
     let version_0 = string.version();
 
@@ -339,7 +337,7 @@ pub(crate) fn test_insert_versioning<S: PersistentString>() {
     assert_version_eq!(string, version_3, "abc");
 }
 
-pub(crate) fn test_insert_str_versioning<S: PersistentString>() {
+pub(crate) fn test_insert_str_versioning<S: PersistentString + Debug>() {
     let mut string = S::new();
     let version_0 = string.version();
 
