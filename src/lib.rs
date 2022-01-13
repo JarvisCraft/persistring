@@ -1,18 +1,16 @@
 #![cfg_attr(feature = "allocator_api", feature(allocator_api))]
 
-use std::{borrow::Cow, fmt};
-
-pub use cow::CowPersistentString;
+pub use {
+    cow::CowPersistentString,
+    long_buffer::LongBufferPersistentString,
+    std::{borrow::Cow, fmt},
+};
 
 mod cow;
+mod long_buffer;
 #[cfg(test)]
 pub(crate) mod tests;
 
-/*
-pub use delta::DeltaPersistentString;
-
-mod delta;
-*/
 /// A string providing persistent operations.
 pub trait PersistentString {
     fn new() -> Self;
