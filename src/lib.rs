@@ -10,6 +10,7 @@ mod cow;
 mod long_buffer;
 #[cfg(test)]
 pub(crate) mod tests;
+mod util;
 
 /// A string providing persistent operations.
 pub trait PersistentString {
