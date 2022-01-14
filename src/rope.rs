@@ -163,7 +163,7 @@ impl RopePersistentString {
                 let left_length = left_node.length;
 
                 let new_address;
-                if left_length >= index {
+                if index <= left_length {
                     let new_left_address = self.insert_str_recursively(
                         left_node.clone(),
                         left_address,
