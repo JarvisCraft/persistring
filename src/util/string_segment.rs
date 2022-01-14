@@ -5,16 +5,15 @@ pub(crate) struct BytesSegment {
 }
 
 impl BytesSegment {
-    pub const EMPTY: BytesSegment = BytesSegment::of_length(0, 0);
+    pub const EMPTY: BytesSegment = BytesSegment { begin: 0, end: 0 };
 
     pub fn new(begin: usize, end: usize) -> Self {
-        debug_assert!(begin < end);
+        debug_assert!(begin <= end);
 
         Self { begin, end }
     }
 
-    pub fn of_length(from: usize, length: usize) -> Self {
-        debug_assert!(length > 0, "segments should not be empty");
+    pub const fn of_length(from: usize, length: usize) -> Self {
         Self {
             begin: from,
             end: from + length,

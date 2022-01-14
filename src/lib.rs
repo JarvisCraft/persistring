@@ -8,6 +8,7 @@ pub use {
 
 mod cow;
 mod long_buffer;
+mod rope;
 #[cfg(test)]
 pub(crate) mod tests;
 mod util;
