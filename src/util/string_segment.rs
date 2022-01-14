@@ -39,11 +39,32 @@ impl BytesSegment {
     }
 
     pub fn len(&self) -> usize {
-        self.end - (self.begin + 1)
+        self.end - self.begin
     }
 
     pub fn as_str<'a>(&self, buffer: &'a [u8]) -> &'a str {
         std::str::from_utf8(&buffer[self.begin..self.end])
             .expect("the segment of version has been created incorrectly")
+    }
+
+    pub fn split_at(&self, index: usize) -> (BytesSegment, BytesSegment) {
+        debug_assert!(
+            0 <= index && index <= self.len(),
+            "index {} should be in bounds [0; {}]",
+            index,
+            self.len()
+        );
+
+        let index = self.begin + index;
+        (
+            Self {
+                begin: self.begin,
+                end: index,
+            },
+            Self {
+                begin: index,
+                end: self.end,
+            },
+        )
     }
 }

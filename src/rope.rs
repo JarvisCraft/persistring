@@ -1,6 +1,3 @@
-use std::collections::VecDeque;
-use std::ptr::null;
-
 use {
     crate::{util::BytesSegment as Segment, PersistentString, VersionSwitchError},
     std::borrow::Cow,
@@ -101,6 +98,100 @@ impl RopePersistentString {
                     },
                     popped,
                 )
+            }
+        }
+    }
+
+    // note: `node` is taken by a (cloned) value in order to make borrowing checker happy
+    fn insert_str_recursively(
+        &mut self,
+        node: Node,
+        node_address: NodeAddress,
+        insertion: Segment,
+        index: usize,
+    ) -> NodeAddress {
+        match node.body {
+            NodeBody::Leaf(segment) => {
+                let inserted_node_address = self.nodes.len();
+                self.nodes.push(Node::of_segment(insertion));
+
+                let new_address;
+                match index {
+                    // insert as a left child
+                    0 => {
+                        new_address = self.nodes.len();
+                        self.nodes.push(Node {
+                            length: node.length + insertion.len(),
+                            body: NodeBody::Parent(inserted_node_address, node_address),
+                        })
+                    }
+                    // insert as a right child
+                    index if index == segment.len() => {
+                        new_address = self.nodes.len();
+                        self.nodes.push(Node {
+                            length: node.length + insertion.len(),
+                            body: NodeBody::Parent(node_address, inserted_node_address),
+                        })
+                    }
+                    // insert in the middle
+                    index => {
+                        let (left_segment, right_segment) = segment.split_at(index);
+
+                        let left_address = self.nodes.len();
+                        self.nodes.push(Node::of_segment(left_segment));
+
+                        let right_address = self.nodes.len();
+                        self.nodes.push(Node::of_segment(right_segment));
+
+                        let left_pair_address = self.nodes.len();
+                        self.nodes.push(Node {
+                            length: left_segment.len() + insertion.len(),
+                            body: NodeBody::Parent(left_address, inserted_node_address),
+                        });
+
+                        new_address = self.nodes.len();
+                        self.nodes.push(Node {
+                            length: segment.len() + insertion.len(),
+                            body: NodeBody::Parent(left_pair_address, right_address),
+                        })
+                    }
+                }
+                new_address
+            }
+            NodeBody::Parent(left_address, right_address) => {
+                let left_node = &self.nodes[left_address];
+                let left_length = left_node.length;
+
+                let new_address;
+                if left_length >= index {
+                    let new_left_address = self.insert_str_recursively(
+                        left_node.clone(),
+                        left_address,
+                        insertion,
+                        index,
+                    );
+
+                    new_address = self.nodes.len();
+                    self.nodes.push(Node {
+                        length: node.length + insertion.len(),
+                        body: NodeBody::Parent(new_left_address, right_address),
+                    });
+                } else {
+                    let new_right_address = self.insert_str_recursively(
+                        self.nodes[right_address].clone(),
+                        right_address,
+                        insertion,
+                        index - left_length,
+                    );
+
+                    new_address = self.nodes.len();
+                    self.nodes.push(Node {
+                        length: node.length + insertion.len(),
+                        body: NodeBody::Parent(left_address, new_right_address),
+                    });
+                }
+
+                new_address
             }
         }
     }
@@ -212,12 +303,12 @@ impl PersistentString for RopePersistentString {
 
         let suffix_length = suffix.len();
 
-        let current_node_index = self.current_node_address();
+        let current_node_address = self.current_node_address();
 
-        let new_node_index;
+        let new_node_address;
         if suffix_length == 0 {
             // keep current string
-            new_node_index = current_node_index;
+            new_node_address = current_node_address;
         } else {
             let right_node_index = self.nodes.len();
 
@@ -232,19 +323,19 @@ impl PersistentString for RopePersistentString {
                 });
             }
 
-            if current_node_index == 0 {
+            if current_node_address == 0 {
                 // no need to append anything to empty node if a new one can be the only node
-                new_node_index = right_node_index;
+                new_node_address = right_node_index;
             } else {
-                new_node_index = self.nodes.len();
+                new_node_address = self.nodes.len();
                 self.nodes.push(Node {
-                    length: self.nodes[current_node_index].length + suffix_length,
-                    body: NodeBody::Parent(current_node_index, right_node_index),
+                    length: self.nodes[current_node_address].length + suffix_length,
+                    body: NodeBody::Parent(current_node_address, right_node_index),
                 });
             }
         }
 
-        self.versions.push(new_node_index);
+        self.versions.push(new_node_address);
         self.current_version = new_version;
     }
 
@@ -318,11 +409,35 @@ impl PersistentString for RopePersistentString {
     }
 
     fn insert(&mut self, index: usize, character: char) {
-        todo!()
+        self.insert_str(index, character.encode_utf8(&mut [0u8; 4]));
     }
 
     fn insert_str(&mut self, index: usize, insertion: &str) {
-        todo!()
+        let current_node_address = self.current_node_address();
+        let node = &self.nodes[current_node_address];
+        if index > node.length {
+            panic!("index {} exceeds length {}", index, node.length);
+        }
+
+        let new_node_address;
+        if insertion.is_empty() {
+            new_node_address = current_node_address;
+        } else {
+            let insertion_begin = self.buffer.len();
+            self.buffer.push_str(insertion);
+            let segment = Segment::of_length(insertion_begin, insertion.len());
+
+            if node.length == 0 {
+                new_node_address = self.nodes.len();
+                self.nodes.push(Node::of_segment(segment));
+            } else {
+                new_node_address =
+                    self.insert_str_recursively(node.clone(), current_node_address, segment, index);
+            }
+        }
+        let new_version = self.versions.len();
+        self.versions.push(new_node_address);
+        self.current_version = new_version;
     }
 }
 
@@ -333,6 +448,15 @@ struct Node {
     length: usize,
     /// Body of this node.
     body: NodeBody,
+}
+
+impl Node {
+    fn of_segment(segment: Segment) -> Self {
+        Self {
+            length: segment.len(),
+            body: NodeBody::Leaf(segment),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
